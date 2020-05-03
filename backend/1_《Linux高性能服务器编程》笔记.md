@@ -240,10 +240,10 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
   
   //potocol:通常设0,表示默认协议,因为上面协议集合下指定一个具体协议,但通常都是唯一的了
   
-  //成功返回socket文件描述符,失败-1并设置errno
+  //成功返回socket文件描述符(sockfd),失败-1并设置errno
   ```
 
-- socket命名(socket与socket地址绑定)
+- socket命名/绑定(socket与socket地址绑定)
 
   ```c++
 	#include <sys/socket.h>
@@ -308,23 +308,30 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
   ```
   
 - 数据读写
+
+  ```c++
+  ssize_t read(int sockfd,void* buf,size_t len);
+  ssize_t write(int sockfd,const void* buf,size_t len);
+  ```
+
   
+
   - TCP读写
-  
-	  ```c++
-  	#include <sys/type.h>
-  	#include <sys/socket.h>
-  	ssize_t recv(int sockfd,void* buf,size_t len,int flags);
-  	//buf和len分别指明缓冲区的地址和大小
-  	//成功返回读取的数据的长度,可能小于len;返回0表示对方已关闭连接;recv错误返回-1并设置errno
-  	ssize_t send(int sockfd,const void* buf,size_t len,int flags);
-  	//成功返回长度,错误同上
-  	```
-  	
-  	![t5-4](../image/backend/1/t5-4.png)
-  
+
+    ```c++
+    #include <sys/type.h>
+    #include <sys/socket.h>
+    ssize_t recv(int sockfd,void* buf,size_t len,int flags);
+    //buf和len分别指明缓冲区的地址和大小
+    //成功返回读取的数据的长度,可能小于len;返回0表示对方已关闭连接;recv错误返回-1并设置errno
+    ssize_t send(int sockfd,const void* buf,size_t len,int flags);
+    //成功返回长度,错误同上
+    ```
+
+    ![t5-4](../image/backend/1/t5-4.png)
+
   - UDP读写
-  
+
     ```c++
     #include <sys/types.h>
     #include <sys/socket.h>
@@ -333,26 +340,36 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
     //比TCP读写的recv和send多了两个socket地址和长度
     //这两个也是可以用来传输STREAM数据的,只要把最后两个参数赋NULL
     ```
-  
+
   - 通用读写
-  
+
     ```c++
     #include <sys/socket.t>
     ssize_t recvmsg(int sockfd,struct msghdr* msg,int flags);
     ssize_t sendmsg(int sockfd,struct msghdr* msg,int flags);
     ```
-  
+
     ![c-5.8.3](../image/backend/1/c5-8-3.png)
-  
+
   - 带外数据
-  
+
     ```c++
     #include <sys/socket.h>
     int socketmark(int sockfd);
     //判断socket下一个数据是否是带外数据
     //如果是,返回1,可用带MSG_OOB的recv调用来接收带外数据
     ```
-  
+
+  - 关闭
+
+    ```c++
+    int close(int sockfd);//只将引用-1
+    ```
+
+    
+
+    
+
 - 地址信息函数 (想知道socket本端socket地址和远端socket地址)
 
   ```c++
