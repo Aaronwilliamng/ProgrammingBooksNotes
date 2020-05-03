@@ -9,13 +9,13 @@
 * ### TCP/IP协议族主要结构和主要协议
   
   * TCP, IP在后序章节讨论, 本章介绍: ICMP, ARP, DNS协议
-  	![1-1](../image/linux/1/1-1.png)
+  	![1-1](../image/backend/1/1-1.png)
   
-* 数据链路层:ARP, RARP协议, 实现IP地址与物理地址的转换(通常为mac地址), 以太网, 802.11无线网络, 令牌环都是用mac地址
+* 数据链路层: ARP, RARP协议, 实现IP地址与物理地址的转换(通常为mac地址), 以太网, 802.11无线网络, 令牌环都是用mac地址
   
-* 网络层:IP, ICMP协议, 实现数据包的选路和转发(主机与主机)
+* 网络层: IP协议, ICMP协议, 实现数据包的选路和转发(主机与主机)
   
-* 传输层: TCP, UDP协议, 
+* 传输层: TCP协议, UDP协议, 
   
 * 应用层:ping(应用,不是协议), telnet协议(远程登录协议), DNS(Domain Name Server, 域名服务)
   
@@ -25,11 +25,11 @@
   
   - 分用:IP, ARP, RARP协议都是用帧传输协议,需要帧头部区分它们;同样TCP, UDP, ICMP都是用IP协议
   
-  ![1-7](../image/linux/1/1-7.png)
+  ![1-7](../image/backend/1/1-7.png)
 	
 - 测试网络
 	
-	  ![](../image/linux/1/1-8.png)
+	  ![](../image/backend/1/1-8.png)
 	
 	- ARP: `arp`可查询ip与mac的映射
 	- DNS: IP与域名的映射, 访问DNS的客户端程序`host github.com`(查询github.com域名的ip地址)
@@ -57,7 +57,7 @@
 
 - ### IPv4头部
 
-  ![2-1](../image/linux/1/2-1.png)
+  ![2-1](../image/backend/1/2-1.png)
 
   IPv4头部通常都是**20字节**
 
@@ -75,11 +75,11 @@
 
   - IP模块工作流程
 
-    ![2-3](../image/linux/1/2-3.png)
+    ![2-3](../image/backend/1/2-3.png)
 
-  - 路由表: 使用``route`命令可查看路由表
+  - 路由表: 使用`route`命令可查看路由表
 
-    ![Table2-2](../image/linux/1/t2-2.png)
+    ![Table2-2](../image/backend/1/t2-2.png)
 
 
 
@@ -99,7 +99,7 @@
 
 
 
-![3-1&3-2](../image/linux/1/3-1.png)
+![3-1&3-2](../image/backend/1/3-1.png)
 
 TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次数的读、写操作
 
@@ -107,7 +107,7 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
 
 - ### TCP头部信息:
 
-  ![3-3](../image/linux/1/3-3.png)
+  ![3-3](../image/backend/1/3-3.png)
 
 前20字节固定(一行4字节 4行)
 
@@ -125,11 +125,11 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
 
 - ### TCP状态转移
 
-  ![3-6](../image/linux/1/3-6.png)
+  ![3-6](../image/backend/1/3-9.png)
 
   半双工(半关闭状态): 单方面不再发送, 但还可以接收(其实就是CLOSE-WAIT状态做的事)
 
-  ![3-7](../image/linux/1/3-7.png)
+  ![3-7](../image/backend/1/3-7.png)
 
 
 
@@ -162,7 +162,7 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
 
   - 拥塞避免: 线性增加窗口大小, 比“慢开始”慢很多
 
-    ![3-12](../image/linux/1/3-12.png)
+    ![3-12](../image/backend/1/3-12.png)
 
   - 快重传: 收到M2立即确认, 收不到M3, 收到M4,M5都对M2确认, 三次发送方就知道M3丢了
 
@@ -177,7 +177,7 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
 ### 本章重点
 
 1. socket地址API (IP:port)
-2. socket基础API `<sys/socket.h` 创建/命名/监听socket, 发起连接, 接收连接, 读写数据, 获取地址等
+2. socket基础API `<sys/socket.h>` 创建/命名/监听socket, 发起连接, 接收连接, 读写数据, 获取地址等
 3. 网络信息API `<netdb.h>` 主机名和ip地址的转换, 服务名与端口号的转换
 
 
@@ -190,7 +190,7 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
 
   unix专用socket地址结构体`<sys/un.h>`
 
-  ![t5-1](../image/linux/1/t5-1.png)
+  ![t5-1](../image/backend/1/t5-1.png)
 
   ```c++
   #include <sys/un.h>
@@ -217,11 +217,151 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
   int_add_t inet_addr(const char* strptr);//十进制字符串的IPv4地址 -> 网络字节序整数 IPv4地址,失败返回INADDR_NONE;
   int inet_aton(const char* cp,struct in_addr* inp);//跟上面函数功能一样,但将转换后的结果存储在inp指向的地址结构中
   char* inet_ntoa(struct in_addr in);//与第一个函数反过程
+
+	//成功1,失败0
+  ```
+  
+  
+
+### socket基础API
+
+- socket创建
+
+  ```c++
+  #include <sys/socket.h>
+  #include <sys/types.h>
+  int socket(int domain, int type, int potocol); 
+  //domain:指定底层协议族(potocol family)
+  //TCP/IP协议而言为PF_INET(IPv4)或PF_INT6(IPv6),UNIX本地域协议而言PF_UNIX
+  
+  //type:SOCK_STREAM(TCP,流服务), SOCK_DGRAM(UDP,数据报服务)
+  //type还可接受上面二个值之一与SOCK_NONBLOCK(非阻塞)和SOCK_CLOEXEC相与的值
+  //其中SOCK_CLOEXEC:表示用fork创建子进程时,在子进程中关闭该socket
+  
+  //potocol:通常设0,表示默认协议,因为上面协议集合下指定一个具体协议,但通常都是唯一的了
+  
+  //成功返回socket文件描述符,失败-1并设置errno
+  ```
+
+- socket命名(socket与socket地址绑定)
+
+  ```c++
+	#include <sys/socket.h>
+  #include <sys/types.h>
+  int bind(int sockfd,struct sockaddr* my_addr,socklen_t addrlen);
+  //sockfd:即socket file description,socket文件描述符,会将my_addr所指地址分配给它
+  //addrlen指明socket地址长度
+
+  //成功0,失败-1并设置errno
+  //常见errno有2种:EACCES和EADDINUSE
+  //EACCES:被绑定的地址受保护,仅超级用户可访问(error access)
+  //EADDRINUSE:地址正在被使用(error address in use)
+ 
+  ```
+  
+- socket监听
+  
+  ```c++
+  #include <sys/socket.h>
+  int listen(int sockfd,int backlog);
+  //sockfd指定被监听的socket
+  //backlog指定内核监听队列最大长度,超过返回ECONNREFUSED(error connection refused),现在单指处于ESTABLISHED(完全连接)的数量,典型值5
+  ```
+  
+- socket接受连接 (从监听队列中接受一个连接)
+  
+  ```c++
+  #include <sys/types.h>
+  #include <sys/socket.h>
+  int accept(int sockfd,struct sockaddr* addr,socklen_t* addrlen);
+  //sockfd是调用过listen系统调用过的监听sock
+  //addr指明远程socket地址
+  //addrlen指明地址长度
+  //成功返回一个新socket,服务器可通过读写这个socket与客户端通信,失败返回-1并设置errno
+  //accpet只是从监听队列取出一个连接,不关心其状态
+  ```
+  
+- 发起连接
+  
+  ```c++
+  #include <sys/types.h>
+  #include <sys/socket.h>
+  int connect(int sockfd,struct sockaddr* addr,socklen_t addrlen);
+  //成功返回0,sockfd唯一标识这个socket;失败返回-1并设置errno、
+  //其中两种常见errno为ECONNREFUSED (端口不存在)和ETIMEDOUT (连接超时)
+  ```
+  
+- 关闭连接
+  
+  ```c++
+  #include <unistd.h>
+  int close(int fd);
+  //将fd的引用计数-1;一个fork系统调用默认将父进程的引用计数+1
+  
+  //shutdown是专为网络编程设计的
+  #include <sys/socket.h>
+  int shutdown(int fd,int howto);
+  //howto定义关闭动作
+  //SHUT_RD:应用程序不再读缓冲区,缓冲区的数据被直接丢弃
+  //SHUT_WT:应用程序不再写入缓冲区,缓冲区中数据会在真正关闭前全部发送出去 (半连接状态)
+  //SHUT_RDWT:同时关闭读写
+  ```
+  
+- 数据读写
+  
+  - TCP读写
+  
+	  ```c++
+  	#include <sys/type.h>
+  	#include <sys/socket.h>
+  	ssize_t recv(int sockfd,void* buf,size_t len,int flags);
+  	//buf和len分别指明缓冲区的地址和大小
+  	//成功返回读取的数据的长度,可能小于len;返回0表示对方已关闭连接;recv错误返回-1并设置errno
+  	ssize_t send(int sockfd,const void* buf,size_t len,int flags);
+  	//成功返回长度,错误同上
+  	```
+  	
+  	![t5-4](../image/backend/1/t5-4.png)
+  
+  - UDP读写
+  
+    ```c++
+    #include <sys/types.h>
+    #include <sys/socket.h>
+    ssize_t recvfrom(int sockfd,void* buf,size_t len,int flags,struct sockaddr* src_addr,socklen_t* addrlen);
+    ssize_t sendto(int sockfd,void* buf,size_t,int flags,struct sockaddr* dst_addr,socklen_t addlen);
+    //比TCP读写的recv和send多了两个socket地址和长度
+    //这两个也是可以用来传输STREAM数据的,只要把最后两个参数赋NULL
+    ```
+  
+  - 通用读写
+  
+    ```c++
+    #include <sys/socket.t>
+    ssize_t recvmsg(int sockfd,struct msghdr* msg,int flags);
+    ssize_t sendmsg(int sockfd,struct msghdr* msg,int flags);
+    ```
+  
+    ![c-5.8.3](../image/backend/1/c5-8-3.png)
+  
+  - 带外数据
+  
+    ```c++
+    #include <sys/socket.h>
+    int socketmark(int sockfd);
+    //判断socket下一个数据是否是带外数据
+    //如果是,返回1,可用带MSG_OOB的recv调用来接收带外数据
+    ```
+  
+- 地址信息函数 (想知道socket本端socket地址和远端socket地址)
+
+  ```c++
+  #include <sys/socket.h>
+  int getsockname(int sockfd,struct sockaddr* address,socklen_t* address_len);
+  int getpeername(int sockfd,struct sockaddr* address,socklen_t* address_len);
+  //getsockname获得本端socket地址,放进address
+  //getpeername获得远端地址
+  //成功返回0,失败-1并设置errno
   ```
 
   
-
-  
-
-
-
