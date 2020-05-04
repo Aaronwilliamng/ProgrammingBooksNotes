@@ -186,9 +186,21 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
 
 - 主机字节序 和 网络字节序
 
-  小端字节序(整数高位存储在内存高位) (主机字节序);大端字节序(网络字节序)
+  小端字节序/ 主机字节序: 整数高位存储在内存高位;
+
+  大端字节序/网络字节序:反之
 
   unix专用socket地址结构体`<sys/un.h>`
+
+    ```c++
+    主机字节序和网络字节序的转换
+    #include<netinet/in.h>
+    htonl:host to net short
+    htons:host to net long
+    ntohs,ntohl同理
+    ```
+
+  ![c5.1.1](../image/backend/1/c5-1-1.png)
 
   ![t5-1](../image/backend/1/t5-1.png)
 
@@ -203,8 +215,14 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
   struct socketaddr_in{
     sa_family_t sin_family; //AF_INET
     u_int6_t sin_port;//端口号
-    struct in_add sin_addr //IPv4结构体
+    struct in_addr sin_addr //IPv4结构体
   };
+  
+  //其中struct in_addr结构体为
+  struct in_addr{
+    in_addr_t s_addr;
+  }
+  
   struct socketaddt_in6{...};
   struct in_addr;//IPv4地址
   struct in6_addr;//IPv6地址
@@ -215,13 +233,20 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
   ```c++
   #include <arpa/inet.h>
   int_add_t inet_addr(const char* strptr);//十进制字符串的IPv4地址 -> 网络字节序整数 IPv4地址,失败返回INADDR_NONE;
-  int inet_aton(const char* cp,struct in_addr* inp);//跟上面函数功能一样,但将转换后的结果存储在inp指向的地址结构中
-  char* inet_ntoa(struct in_addr in);//与第一个函数反过程
+  //例子:
+   servaddr.sin_addr.s_addr = inet_addr("192.168.0.1"); 
 
-	//成功1,失败0
+	int inet_aton(const char* cp,struct in_addr* inp);//跟上面函数功能一样,但将转换后的结果存储在inp指向的地址结构中
+  
+  char* inet_ntoa(struct in_addr in);//与第一个函数反过程:网络字节序整数IPv4地址->十进制字符串IPv4地址
+  //inet_ntoa means: internet net to address
+  //成功1,失败0
+  
+  int inet_ptoa(int af,const char* src,void* dst);
+  //例子:
+  inet_ptoa(AF_INET,argv[1],&servaddr.sin_addr);//argv[1]:127.0.0.1 (char*)
   ```
-  
-  
+
 
 ### socket基础API
 
@@ -365,8 +390,6 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
     ```c++
     int close(int sockfd);//只将引用-1
     ```
-
-    
 
     
 
