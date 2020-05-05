@@ -405,3 +405,168 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
   ```
 
   
+
+## 第九章 I/O复用 (同时监听多个fd)
+
+- 本章重点:
+  - 客户端要同时处理多个socket (非阻塞connect技术)
+  - 客户端要同时处理输入和网络连接 (聊天室程序)
+  - TCP服务端要同时处理监听socket和连接socket
+  - 服务端要同时处理TCP和UDP请求 (回射服务器)
+  - 服务端要同时监听多个端口 (xinetd服务器)
+  - select, poll, epoll
+
+
+
+可能存在问题:
+
+I/O复用虽能同时监听多个fd, 但本身是阻塞的; 
+
+若多个fd同时就绪, 则只能按顺序处理, 看上去就像串行, 如果要并行, 需要采用多进程多线程
+
+
+
+### select API
+
+```c++
+#include<sys/select.h>
+int select(int nfds,fd_set* readfds,fd_set* writefds,fd_set* exceptfds,struct timeval* timeout);
+//nfds:n file description set 指定fd数量
+//readfds,writefds,execptdfs分别指向可读,可写,异常对应的fds(文件描述符集合)
+//fd_set可以理解为一个按bit位标记句柄的队列,比如要标记一个值为16的句柄, 则fd_set第16位置1
+//返回就绪(包括可读,可写,异常fd总数),失败返回-1,设置errno;超时没有修改则返回0
+
+struct timeval{
+  long tv_sec;//秒
+  long tv_usec;//微秒
+};
+//timeval超时
+//timeval传递0, select会立刻返回
+//timeval传递NULL, select会阻塞直到有fd就绪
+```
+
+```c++
+#include<sys/select.h>
+//用以访问/修改fd_set
+
+FD_ZERO(int fd,fd_set* fds);//置0
+FD_ZERO(fd_set* fds)//全部置0
+FD_SET(int fd,fd_set* fds);//设置fds位fd
+FD_ISSET(int fd,fd_set* fds);//清除位fd
+FD_CLR(int fd,fd_set* fds);//检测位fd是否被设置
+```
+
+
+
+### poll系统调用
+
+```c++
+#include<poll.h>
+int poll(struct pollfd* fds,nfds_t nfds,int timeout);
+//返回修改数
+
+//struct pollfd* fds指定我们感兴趣的fd上发生的可读,可写,异常事件
+struct pollfd{
+  int fd;
+  short events;//告诉poll监听fd上哪些事件
+  short revents;//由内核修改,通知应用fd正在发生哪些事件
+};
+
+define unsigned long int nfds_t;//指定被监听集合的大小
+
+//timeout单位是毫秒,当timeout置-1,poll阻塞直到事件发生;置0立即返回
+
+```
+
+![t9-1](../image/backend/2/t9-1.png)
+
+
+
+### epoll系统调用
+
+epoll与select, poll不同, 它使用一组函数来完成任务, 而不是单个函数; 把用户关心的文件描述符上的事件都放在内核的一个事件表里, 这样就不用每次调用都传入文件描述符集或事件集, 为此epoll需要一个文件描述符来唯一描述这个内核事件表, 这个描述符可通过`epoll_create()`创建
+
+```c++
+#include<sys/epoll.h>
+int epoll_create(int size);
+//返回epoll文件描述符,以供其他epoll调用访问这个事件表
+```
+
+```c++
+#include<sys/epoll.h>
+int epoll_ctl(int epfd,int op,int fd,struct epoll_event* event);
+//op指定操作选项:EPOLL_CTL_ADD; EPOLL_CTL_MOD; EPOLL_CTL_DEL
+//fd指定文件
+//成功0;失败-1设置errno
+
+//event的结构
+struct epoll_event{
+  __uint32_t event;//指定事件
+  epoll_data_t data;//指定用户数据,epoll_data_t结构如下
+};
+//event事件的宏跟poll基本一样, 在poll事件头+'E'即可,比如POLLIN -> EPOLLIN
+//但epoll新增两个EPOLLET和EPOLLONESHOT
+
+typedef union epoll_data{
+  void* ptr;
+  int fd;
+  uint32_t u32;
+  uint64_t u64;
+}epoll_data_t;
+//epoll_data_t是一个union(联合体),不能同时使用其中多个成员
+```
+
+```c++
+#include<sys/epoll.h>
+int epoll_wait(int epfd,struct epoll_event* events,int maxevents,int timeout);
+//在超时时间内等待一组文件描述符上的事件
+//成功返回就绪文件个数,失败-1,errno
+//maxevents监听多少个事件
+//events只用于输出就绪事件
+```
+
+
+
+### 如何使用poll和epoll
+
+```c++
+//poll的使用 (比较麻烦,必须遍历所有已注册文件描述符,找到就绪事件)
+int ret = poll(fds,MAX_EVENT_NUMBER,-1);
+for(int i=0;i<MAX_EVENT_NUMVER;i++){
+  //是否可读
+  if(fds[i].revents & POLLIN){ 
+    int sockfd = fds[i].fd;
+    //... 处理sockfd
+  }
+}
+```
+
+```c++
+//epoll的使用
+int ret = epoll_wait(epollfd,events,MAX_EVENT_NUMBER,-1){
+	//可直接处理
+  for(int i;i < ret;i++){
+    int sockfd = events[i].data.fd;
+  }
+}
+```
+
+
+
+### epoll的LT模式和ET模式
+
+LT: 默认模式, level trigger,电平触发, 相当于高效poll
+
+ET: edge trigger,边沿触发, 相当于高效epoll, 需要往内核事件表注册一个文件描述符的EPOLLET事件, 系统按ET模式操作该文件描述符, 
+
+LT模式下`epoll_wait`检测到事件报告后, 应用可不处理, 下一次有事件,  `epoll_wait`会继续报告直到事件被处理;
+
+ET模式下`epoll_wait`报告事件后必须处理, 减少了重复报告事件
+
+每一个ET模式下的文件描述符都已经是非阻塞的, 否则读写操作没有后续操作一直阻塞(饥渴状态)
+
+
+
+### EPOLLONESHOT
+
+一个文件描述符注册了EPOLLONESHOT事件, 只能由一个线程操作, 其他线程无法插手 (操作完成后要重置EPOLLONESHOT 使用`reset_oneshot()`方法, 否则其他线程以后也无法处理)
