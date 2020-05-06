@@ -426,12 +426,14 @@ I/O复用虽能同时监听多个fd, 但本身是阻塞的;
 
 
 
-### select API
+### select系统调用
 
 ```c++
 #include<sys/select.h>
+//select的思想是传入所感兴趣的n个文件描述符上的3个事件集fd_set,并设一个超时时间
+
 int select(int nfds,fd_set* readfds,fd_set* writefds,fd_set* exceptfds,struct timeval* timeout);
-//nfds:n file description set 指定fd数量
+//nfds:n file description set 指定fd数量,通常为监听fd中最大值+1
 //readfds,writefds,execptdfs分别指向可读,可写,异常对应的fds(文件描述符集合)
 //fd_set可以理解为一个按bit位标记句柄的队列,比如要标记一个值为16的句柄, 则fd_set第16位置1
 //返回就绪(包括可读,可写,异常fd总数),失败返回-1,设置errno;超时没有修改则返回0
@@ -445,16 +447,54 @@ struct timeval{
 //timeval传递NULL, select会阻塞直到有fd就绪
 ```
 
+#### 操作fd_set
+
 ```c++
 #include<sys/select.h>
-//用以访问/修改fd_set
+struct fd_set;//仅包含一个int数组,每一位标记一个fd,
+//其中fd_set中fds_bits[__FD_SETSIZE/__NFDBITS],FD_SETSIZE定义为1024
 
-FD_ZERO(int fd,fd_set* fds);//置0
-FD_ZERO(fd_set* fds)//全部置0
-FD_SET(int fd,fd_set* fds);//设置fds位fd
-FD_ISSET(int fd,fd_set* fds);//清除位fd
-FD_CLR(int fd,fd_set* fds);//检测位fd是否被设置
+//用以访问/修改fd_set
+FD_ZERO(fd_set* fds)//清空fds
+FD_SET(int fd,fd_set* fds);//在fds添加一个文件描述符,比如FD_SET(4,read_fds);
+FD_ISSET(int fd,fd_set* fds);//检测fd是否在fds中,是否被设置,比如FD_CLR(5,write_fds);
+FD_CLR(int fd,fd_set* fds);//fds删除一个文件描述符
 ```
+
+#### select使用实例
+
+```c++
+//...
+int connfd = accept(listenfd,(struct sockaddr*)＆client_address,＆client_addrlength);
+//...
+int ret = 0;
+char buf[1024];
+//两个事件集
+fd_set read_fds;
+fd_set exception_fds;
+//初始化清空,注意fd_set的操作输入参数都是指针,要&取址
+FD_ZERO(＆read_fds);
+FD_ZERO(＆exception_fds);
+while(1)
+{
+	memset(buf,'\0',sizeof(buf));
+	//每次调用select前都要在read_fds和exception_fds中把感兴趣的文件描述符(这里是connfd)添加进set
+  //这里因为只有一个fd需要处理即connfd,但readfd里是有很多个fd的事件的可读事件标志的
+  FD_SET(connfd,＆read_fds);
+	FD_SET(connfd,＆exception_fds);
+  //select会把没有发生的事件从set中删掉,剩下发生的事件
+	ret=select(connfd+1,＆read_fds,NULL,＆exception_fds,NULL);
+	//处理可读事件
+	if(FD_ISSET(connfd,＆read_fds))
+	{
+		ret=recv(connfd,buf,sizeof(buf)-1,0);//如果是exception_fds则是带外数据,flags位设为"MSG_OOB"
+  	printf("get %d bytes of normal data:%s\n",ret,buf);
+	}
+  //如果要发送,可在前面设置write_fds,在这if(FD_ISSET(connfd,&write_fds)){...}
+}
+```
+
+
 
 
 
@@ -462,6 +502,7 @@ FD_CLR(int fd,fd_set* fds);//检测位fd是否被设置
 
 ```c++
 #include<poll.h>
+//区别于select,poll输入参数除了指定set大小和超时时间timeout,只用一个pollfd数组set来表示,其中包含fd,注册事件,发生事件
 int poll(struct pollfd* fds,nfds_t nfds,int timeout);
 //返回修改数
 
@@ -480,6 +521,33 @@ define unsigned long int nfds_t;//指定被监听集合的大小
 
 ![t9-1](../image/backend/2/t9-1.png)
 
+####poll使用实例
+
+```c++
+//poll的使用 (比较麻烦,必须遍历所有已注册文件描述符,找到就绪事件)
+struct pollfd fds[FD_NUMBER];
+//初始化数组中结构体成员
+//比如第一个
+fds[0].fd = first_fd;
+fds[0].events = POLLIN | POLLOUT;//设置多个事件用'|'或运算
+
+int ret = poll(fds,MAX_EVENT_NUMBER,-1);
+//遍历
+for(int i=0;i<MAX_EVENT_NUMVER;i++){
+  //是否可读
+  if(fds[i].revents & POLLIN){ 
+    int sockfd = fds[i].fd;
+    //... 处理sockfd
+  }
+}
+//只看第一个fd
+if(fds[0].revents&POLLIN){
+  //first_fd...
+}
+```
+
+
+
 
 
 ### epoll系统调用
@@ -489,20 +557,28 @@ epoll与select, poll不同, 它使用一组函数来完成任务, 而不是单�
 ```c++
 #include<sys/epoll.h>
 int epoll_create(int size);
+//size告诉epoll监听多少fd
 //返回epoll文件描述符,以供其他epoll调用访问这个事件表
+//用完必须close,这个epollfd能在/proc/进程id/fd/看到,不close会耗尽资源
 ```
 
 ```c++
 #include<sys/epoll.h>
 int epoll_ctl(int epfd,int op,int fd,struct epoll_event* event);
-//op指定操作选项:EPOLL_CTL_ADD; EPOLL_CTL_MOD; EPOLL_CTL_DEL
-//fd指定文件
-//成功0;失败-1设置errno
+/*
+op指定操作选项:
+EPOLL_CTL_ADD;
+EPOLL_CTL_MOD;
+EPOLL_CTL_DEL
+
+fd指定文件,epoll_ctl需要一个fd一个fd添加
+成功0;失败-1设置errno
+*/
 
 //event的结构
 struct epoll_event{
   __uint32_t event;//指定事件
-  epoll_data_t data;//指定用户数据,epoll_data_t结构如下
+  epoll_data_t data;//指定用户数据,epoll_data_t结构详情在下面
 };
 //event事件的宏跟poll基本一样, 在poll事件头+'E'即可,比如POLLIN -> EPOLLIN
 //但epoll新增两个EPOLLET和EPOLLONESHOT
@@ -520,26 +596,12 @@ typedef union epoll_data{
 #include<sys/epoll.h>
 int epoll_wait(int epfd,struct epoll_event* events,int maxevents,int timeout);
 //在超时时间内等待一组文件描述符上的事件
-//成功返回就绪文件个数,失败-1,errno
+//成功返回有绪事件集的文件描述符个数,失败-1,errno
 //maxevents监听多少个事件
 //events只用于输出就绪事件
 ```
 
-
-
-### 如何使用poll和epoll
-
-```c++
-//poll的使用 (比较麻烦,必须遍历所有已注册文件描述符,找到就绪事件)
-int ret = poll(fds,MAX_EVENT_NUMBER,-1);
-for(int i=0;i<MAX_EVENT_NUMVER;i++){
-  //是否可读
-  if(fds[i].revents & POLLIN){ 
-    int sockfd = fds[i].fd;
-    //... 处理sockfd
-  }
-}
-```
+#### epoll使用实例
 
 ```c++
 //epoll的使用
@@ -550,6 +612,48 @@ int ret = epoll_wait(epollfd,events,MAX_EVENT_NUMBER,-1){
   }
 }
 ```
+
+```c++
+//epoll框架
+for( ; ; )
+    {
+        nfds = epoll_wait(epfd,events,20,500);
+        for(i=0;i<nfds;++i)
+        {
+            if(events[i].data.fd==listenfd) //有新的连接
+            {
+                connfd = accept(listenfd,(sockaddr *)&clientaddr, &clilen); //accept这个连接
+               	//ev用以修改 
+              	ev.data.fd=connfd;
+                ev.events=EPOLLIN|EPOLLET;
+                epoll_ctl(epfd,EPOLL_CTL_ADD,connfd,&ev); //将新的fd添加到epoll的监听队列中
+            }
+            else if( events[i].events&EPOLLIN ) //接收到数据，读socket
+            {
+                n = read(sockfd, line, MAXLINE)) < 0    //读
+                ev.data.ptr = md;     //md为自定义类型，添加数据
+                ev.events=EPOLLOUT|EPOLLET;
+              	//修改标识符，等待下一个循环时发送数据，异步处理的精髓
+                epoll_ctl(epfd,EPOLL_CTL_MOD,sockfd,&ev);
+            }
+            else if(events[i].events&EPOLLOUT) //有数据待发送，写socket
+            {
+                struct myepoll_data* md = (myepoll_data*)events[i].data.ptr;    //取数据
+                sockfd = md->fd;
+                send( sockfd, md->ptr, strlen((char*)md->ptr), 0 );        //发送数据
+                ev.data.fd=sockfd;
+                ev.events=EPOLLIN|EPOLLET;
+                epoll_ctl(epfd,EPOLL_CTL_MOD,sockfd,&ev); //修改标识符，等待下一个循环时接收数据
+            }
+            else
+            {
+                //其他的处理
+            }
+        }
+    }
+```
+
+
 
 
 
