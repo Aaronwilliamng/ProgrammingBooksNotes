@@ -404,7 +404,45 @@ TCP, UDP这种区别对应到编程中体现为通信双方是否执行相同次
   //成功返回0,失败-1并设置errno
   ```
 
-  
+- 总结笔记
+
+  ![note5-1](../image/backend/1/n5-1.png)
+
+  ![note5-2](../image/backend/1/n5-2.png)
+
+  ![note5-3](../image/backend/1/n5-3.png)
+
+
+
+
+## 第八章 高性能服务器程序框架
+
+### 服务器模型
+
+#### C/S模型
+
+![8-2](../image/backend/1/8-2.png)
+
+
+
+### I/O模型
+
+> socket在创建的时候默认是阻塞的, 可以给socket系统调用的第2个参数传递`SOCK_NONBLOCK`标志 或者 通过`fcntl`系统调用的`F_SETFL`命令，将其设置为非阻塞的, 阻塞的文件描述符为阻塞I/O，非阻塞的文件描述符为非阻塞I/O
+> socket基础API中可能被阻塞的系统调用包括accept、send、recv和connect
+> 针对非阻塞I/O执行的系统调用总是立即返回，不管事件是否已经发生: 如果事件没有立即发生，系统调用就返回-1，和出错的情况一样, 此时必须根据errno来区分这两种情况: 
+>
+> - 对accept、send和recv而言，事件未发生时errno通常被设置成`EAGAIN`（意为“再来一次”）或者`EWOULDBLOCK`（意为“期望阻塞”）；
+> - 对connect而言，errno则被设置成`EINPROGRESS`（意为“在处理中”）
+
+
+
+#### 异步I/O
+
+阻塞I/O, I/O复用, 信号驱动I/O都是同步I/O模型, 其内核通知应用的是就绪事件; 异步I/O通知的是完成事件
+
+
+
+![8-3-1](../image/backend/1/8-3-1.png)
 
 ## 第九章 I/O复用 (同时监听多个fd)
 
@@ -655,9 +693,7 @@ for( ; ; )
 
 
 
-
-
-### epoll的LT模式和ET模式
+#### epoll的LT模式和ET模式
 
 LT: 默认模式, level trigger,电平触发, 相当于高效poll
 
@@ -671,6 +707,24 @@ ET模式下`epoll_wait`报告事件后必须处理, 减少了重复报告事件
 
 
 
-### EPOLLONESHOT
+#### EPOLLONESHOT
 
-一个文件描述符注册了EPOLLONESHOT事件, 只能由一个线程操作, 其他线程无法插手 (操作完成后要重置EPOLLONESHOT 使用`reset_oneshot()`方法, 否则其他线程以后也无法处理)
+对于注册了EPOLLONESHOT事件的文件描述符，操作系统最多触发其上注册的一个可读、可写或者异常事件，且只触发一次。这样当一个线程在处理某个socket时，其他线程是不可能有机会操作该socket的。
+
+操作完成后要重置EPOLLONESHOT 使用`reset_oneshot()`方法, 否则以后其他线程以后也无法处理这个socket可读事件
+
+
+
+
+
+### select, poll, epoll的区别
+
+![t9-2](../image/backend/1/t9-2.png)
+
+epoll适合连接数量多, 但活跃连接少的场景 (否则频繁调用回调函数效率不一定高)
+
+![note9-1](../image/backend/1/n9-1.png)
+
+![note9-2](../image/backend/1/n9-2.png)
+
+![note9-3](../image/backend/1/n9-3.png)
